@@ -1,0 +1,98 @@
+WITH target_date as (
+    select '20200801' as date
+),
+    test_user AS (
+    SELECT DISTINCT user_id
+    FROM bun_log_db.app_event_type_impression
+    WHERE year || month || day in (select date from target_date)
+      AND user_id IS NOT NULL
+      AND ref_source = 'rec_product_psn_main'
+      AND device_type = 'a'
+)
+SELECT 'not home',
+    home_user_count, home_session_count, home_count,
+    imp_count, view_user_count, view_count
+FROM (
+         SELECT count(*) imp_count, count(DISTINCT user_id) imp_user_count, count(distinct session_id) imp_session_count
+         FROM bun_log_db.app_event_type_impression
+         WHERE year || month || day in (select date from target_date)
+           AND page_id = '홈'
+           AND user_id NOT IN (SELECT user_id FROM test_user)
+           AND user_id is not null
+           AND device_type = 'a'
+     ) x,
+     (
+         SELECT count(*) view_count,
+                count(DISTINCT user_id) view_user_count,
+                count(DISTINCT session_id) view_session_count
+         FROM (
+                  SELECT server_time,
+                         user_id,
+                         session_id,
+                         page_id,
+                         lag(page_id, 1) OVER (ORDER BY user_id, server_time ASC) prev_page_id,
+                         lag(user_id, 1) OVER (ORDER BY user_id, server_time ASC) prev_user_id
+                  FROM bun_log_db.app_event_type_visit
+                  WHERE year || month || day in (select date from target_date)
+                    AND user_id NOT IN (SELECT user_id FROM test_user)
+                    AND user_id is not null
+                    AND device_type = 'a'
+              )
+         WHERE user_id = prev_user_id
+           AND page_id = '상품상세' AND prev_page_id = '홈'
+     ) y,
+    (
+         SELECT count(*) home_count, count(DISTINCT user_id) home_user_count, count(distinct session_id) home_session_count
+         FROM bun_log_db.app_event_type_visit
+         WHERE year || month || day in (select date from target_date)
+           AND page_id = '홈'
+           AND user_id NOT IN (SELECT user_id FROM test_user)
+           AND user_id is not null
+           AND device_type = 'a'
+    ) z
+union
+SELECT 'home',
+    home_user_count, home_session_count, home_count,
+    imp_count, view_user_count, view_count
+FROM (
+         SELECT count(*) imp_count, count(DISTINCT user_id) imp_user_count, count(distinct session_id) imp_session_count
+         FROM bun_log_db.app_event_type_impression
+         WHERE year || month || day in (select date from target_date)
+           AND page_id = '홈'
+           AND user_id IN (SELECT user_id FROM test_user)
+           AND user_id is not null
+           AND device_type = 'a'
+     ) x,
+     (
+         SELECT count(*) view_count,
+                count(DISTINCT user_id) view_user_count,
+                count(DISTINCT session_id) view_session_count
+         FROM (
+                  SELECT server_time,
+                         user_id,
+                         session_id,
+                         page_id,
+                         lag(page_id, 1) OVER (ORDER BY user_id, server_time ASC) prev_page_id,
+                         lag(user_id, 1) OVER (ORDER BY user_id, server_time ASC) prev_user_id
+                  FROM bun_log_db.app_event_type_visit
+                  WHERE year || month || day in (select date from target_date)
+                    AND user_id IN (SELECT user_id FROM test_user)
+                    AND user_id is not null
+                    AND device_type = 'a'
+              )
+         WHERE user_id = prev_user_id
+           AND page_id = '상품상세' AND prev_page_id = '홈'
+     ) y,
+    (
+         SELECT count(*) home_count, count(DISTINCT user_id) home_user_count, count(distinct session_id) home_session_count
+         FROM bun_log_db.app_event_type_visit
+         WHERE year || month || day in (select date from target_date)
+           AND page_id = '홈'
+           AND user_id IN (SELECT user_id FROM test_user)
+           AND user_id is not null
+           AND device_type = 'a'
+    ) z
+;
+
+
+
